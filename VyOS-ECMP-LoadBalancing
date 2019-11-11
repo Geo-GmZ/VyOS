@@ -1,0 +1,57 @@
+//Enter configure mode
+configure
+
+//Enable SSH access
+set service ssh port '22'
+
+//Setting interfaces ip address and adding description for better troubleshooting if is needed.
+set interfaces ethernet eth0 address '10.0.10.13/24'
+set interfaces ethernet eth0 description 'WAN1'
+set interfaces ethernet eth1 address '192.168.10.1/24'
+set interfaces ethernet eth1 description 'LAN'
+set interfaces ethernet eth2 address '10.0.4.15/24'
+set interfaces ethernet eth2 description 'WAN2'
+
+//Creating statics routes the "next-hop" is the Gateway to INTERNET ip address adjust with yours.
+set protocols static route 0.0.0.0/0 next-hop 10.0.10.1
+set protocols static route 0.0.0.0/0 next-hop 10.0.4.2
+
+//Creating NAT rules
+set nat source rule 1 outbound-interface eth0
+set nat source rule 1 source address 192.168.10.0/24
+set nat source rule 1 translation address masquerade
+set nat source rule 2 outbound-interface eth2
+set nat source rule 2 source address 192.168.10.0/24
+set nat source rule 2 translation address masquerade
+
+//Configuring DHCP server for LAN
+set service dhcp-server disabled 'false'
+set service dhcp-server shared-network-name LAN subnet 192.168.10.0/24 default-router '192.168.10.1'
+set service dhcp-server shared-network-name LAN subnet 192.168.10.0/24 dns-server '192.168.10.1'
+set service dhcp-server shared-network-name LAN subnet 192.168.10.0/24 domain-name 'internal-network'
+set service dhcp-server shared-network-name LAN subnet 192.168.10.0/24 lease '86400'
+set service dhcp-server shared-network-name LAN subnet 192.168.10.0/24 start 192.168.10.9 stop '192.168.10.254'
+
+//Configuring DNS server I'm using google DNS but you can use what you prefer
+set service dns forwarding cache-size '0'
+set service dns forwarding listen-on 'eth1'
+set service dns forwarding name-server '8.8.8.8'
+set service dns forwarding name-server '8.8.4.4'
+
+//Configuring Wan Load Balancer
+//(nexthop) is the ip address of your WAN gateway (router)
+//(target) ip is the ip address that you wan to monitor to health check the links this keeps sending pings to them
+set load-balancing wan interface-health eth0 failure-count 2
+set load-balancing wan interface-health eth0 nexthop 10.0.10.1
+set load-balancing wan interface-health eth0 test 10 type ping
+set load-balancing wan interface-health eth0 test 10 target 8.8.8.8
+set load-balancing wan interface-health eth2 failure-count 2
+set load-balancing wan interface-health eth2 nexthop 10.0.4.2
+set load-balancing wan interface-health eth2 test 10 type ping
+set load-balancing wan interface-health eth2 test 10 target 8.8.4.4
+set load-balancing wan rule 10 inbound-interface eth1
+set load-balancing wan rule 10 interface eth0
+set load-balancing wan rule 10 interface eth2
+
+//Apply Changes and save
+commit
